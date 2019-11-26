@@ -3,7 +3,8 @@
  * required header files, as well as the function signatures and
  * the semaphore values (which are to be changed as needed).
  ******************************************************************/
-
+# ifndef HELPER_H
+# define HELPER_H
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -26,8 +27,6 @@ using namespace std;
 
 # define GENERIC_ERROR_CODE -1
 
-int SEM_ID;
-int *job_durations;
 const int PRODUCER_WAIT = 20;
 const int CONSUMER_WAIT = 20;
 
@@ -43,3 +42,5 @@ int sem_init (int, int, int);
 void sem_wait (int, short unsigned int);
 void sem_signal (int, short unsigned int);
 int sem_close (int);
+
+#endif

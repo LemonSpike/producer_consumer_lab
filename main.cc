@@ -10,6 +10,9 @@
 # define INVALID_ARGUMENT 2
 # define FAILED_SEMAPHORE_INIT 3
 
+int SEM_ID;
+int *job_durations;
+
 void setup_producers (int num_of_producers);
 void setup_consumers (int num_of_consumers);
 void setup_jobs ();
@@ -61,8 +64,7 @@ int main (int argc, char **argv)
   // Create semaphores.
   int num_semaphores = num_of_producers + num_of_consumers + 1;
   SEM_ID = sem_create(SEM_KEY,
-       	              num_semaphores,
-                      0666 | IPC_CREAT | IPC_EXCL);
+                      num_semaphores);
 
   // Setup jobs semaphore.
   setup_jobs();
@@ -73,8 +75,6 @@ int main (int argc, char **argv)
   // Setup and initialise producer threads and semaphores.
   setup_producers(num_of_producers);
 
-  for (int index = 0; index < queue_size; index++)
-    delete job_durations[index];
   delete [] job_durations;
 
   return 0;
@@ -122,11 +122,9 @@ void *producer (void *id)
   if (result != 0) {
     cout << "sem_init for " << *index << " in producer has failed.";
     cout << "sem_init error code: " << result << endl;
-    pthread_exit(1);
+    pthread_exit(0);
     exit(FAILED_SEMAPHORE_INIT);
   }
-
-  cout << "Parameter = " << *param << endl;
 
   sleep (5);
 
@@ -143,7 +141,7 @@ void *consumer (void *id)
   if (result != 0) {
     cout << "sem_init for " << *index << " in consumer has failed.";
     cout << " sem_init error code: " << result << endl;
-    pthread_exit(1);
+    pthread_exit(0);
     exit(FAILED_SEMAPHORE_INIT);
   }
 
