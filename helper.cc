@@ -14,12 +14,12 @@ int check_arg (char *buffer)
 {
   int i, num = 0, temp = 0;
   if (strlen (buffer) == 0)
-    return -1;
+    return GENERIC_ERROR_CODE;
   for (i=0; i < (int) strlen (buffer); i++)
   {
     temp = 0 + buffer[i];
     if (temp > 57 || temp < 48)
-      return -1;
+      return GENERIC_ERROR_CODE;
     num += pow (10, strlen (buffer)-i-1) * (buffer[i] - 48);
   }
   return num;
@@ -29,7 +29,7 @@ int sem_create (key_t key, int num)
 {
   int id;
   if ((id = semget (key, num,  0666 | IPC_CREAT | IPC_EXCL)) < 0)
-    return -1;
+    return GENERIC_ERROR_CODE;
   return id;
 }
 
@@ -38,7 +38,7 @@ int sem_init (int id, int num, int value)
   union semun semctl_arg;
   semctl_arg.val = value;
   if (semctl (id, num, SETVAL, semctl_arg) < 0)
-    return -1;
+    return GENERIC_ERROR_CODE;
   return 0;
 }
 
@@ -61,6 +61,6 @@ void sem_signal (int id, short unsigned int num)
 int sem_close (int id)
 {
   if (semctl (id, 0, IPC_RMID, 0) < 0)
-    return -1;
+    return GENERIC_ERROR_CODE;
   return 0;
 }

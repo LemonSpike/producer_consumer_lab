@@ -8,6 +8,7 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <unistd.h>
+# include <sys/msg.h>
 # include <sys/types.h>
 # include <sys/ipc.h>
 # include <sys/shm.h>
@@ -21,7 +22,14 @@
 # include <iostream>
 using namespace std;
 
-# define SEM_KEY 0x50 // Change this number as needed
+# define SEM_KEY ftok("main.cc", 'B')
+
+# define GENERIC_ERROR_CODE -1
+
+int SEM_ID;
+int *job_durations;
+const int PRODUCER_WAIT = 20;
+const int CONSUMER_WAIT = 20;
 
 union semun {
     int val;               /* used for SETVAL only */
