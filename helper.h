@@ -8,6 +8,7 @@
 
 # include <stdio.h>
 # include <stdlib.h>
+# include <cstdlib>
 # include <unistd.h>
 # include <sys/msg.h>
 # include <sys/types.h>
@@ -23,12 +24,14 @@
 # include <iostream>
 using namespace std;
 
-# define SEM_KEY ftok("main.cc", 'B')
-
+// Errors
 # define GENERIC_ERROR_CODE -1
+# define INSUFFICIENT_NUM_ARGS 1
+# define INVALID_ARGUMENT 2
+# define FAILED_SEMAPHORE_INIT 3
 
-const int PRODUCER_WAIT = 20;
-const int CONSUMER_WAIT = 20;
+// Semaphore set key
+# define SEM_KEY ftok("main.cc", 'B')
 
 union semun {
     int val;               /* used for SETVAL only */

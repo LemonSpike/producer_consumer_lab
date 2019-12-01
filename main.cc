@@ -5,19 +5,30 @@
 
 #include "helper.h"
 
-// Errors
-# define INSUFFICIENT_NUM_ARGS 1
-# define INVALID_ARGUMENT 2
-# define FAILED_SEMAPHORE_INIT 3
+struct Data {
+  const int PRODUCER_WAIT;
+  const int CONSUMER_WAIT;
+  int space;
+  int item;
+  int mutex;
+  int semaphore_id;
+  int queue_size;
+  int num_producer_jobs;
+  int num_of_producers;
+  int num_of_consumers;
+  int *job_durations;
+  int job_counter;
 
-int SEM_ID;
-int *job_durations;
+  Data(): PRODUCER_WAIT(0), CONSUMER_WAIT(0), space(0),
+          item(1), mutex(2), job_counter(0) { };
+};
 
-void setup_producers (int num_of_producers);
-void setup_consumers (int num_of_consumers);
-void setup_jobs ();
-void *producer (void *id);
-void *consumer (void *id);
+void print_sem_error_if_needed(int result);
+void setup_producers (Data *data);
+void setup_consumers (Data *data);
+void setup_semaphores (Data *data);
+void *producer (void *params);
+void *consumer (void *params);
 
 int main (int argc, char **argv)
 {
@@ -58,35 +69,63 @@ int main (int argc, char **argv)
     return INVALID_ARGUMENT;
   }
 
-  // Setup and initialise shared jobs data structure.
-  job_durations = new int[queue_size];
+  // Setup and initialise data structure.
+  Data *data = new Data();
+  data -> queue_size = queue_size;
+  data -> num_producer_jobs = num_producer_jobs;
+  data -> job_durations = new int[queue_size];
+  data -> num_of_consumers = num_of_consumers;
+  data -> num_of_producers = num_of_producers;
 
-  // Create semaphores.
-  int num_semaphores = num_of_producers + num_of_consumers + 1;
-  SEM_ID = sem_create(SEM_KEY,
-                      num_semaphores);
+  // Setup semaphores.
+  setup_semaphores(data);
 
-  // Setup jobs semaphore.
-  setup_jobs();
+  // Setup and initialise consumer threads.
+  setup_consumers(data);
 
-  // Setup and initialise consumer threads and semaphores.
-  setup_consumers(num_of_consumers);
+  // Setup and initialise producer threads.
+  setup_producers(data);
 
-  // Setup and initialise producer threads and semaphores.
-  setup_producers(num_of_producers);
-
-  delete [] job_durations;
+  delete [] data -> job_durations;
 
   return 0;
 }
 
-void setup_producers (int num_of_producers)
+void setup_semaphores (Data *data)
 {
+  const int NUM_SEMAPHORES = 3;
+  const int SEM_ID = sem_create(SEM_KEY,
+                                NUM_SEMAPHORES);
+  data -> semaphore_id = (int) SEM_ID;
+
+  int result = sem_init (SEM_ID, data -> space, data -> queue_size);
+  print_sem_error_if_needed(result, data -> space);
+
+  result = sem_init (SEM_ID, data -> item, 0);
+  print_sem_error_if_needed(result, data -> item);
+
+  result = sem_init (SEM_ID, data -> mutex, 1);
+  print_sem_error_if_needed(result, data -> mutex);
+}
+
+void print_sem_error_if_needed(int result, int index)
+{
+  if (result == GENERIC_ERROR_CODE) {
+    cout << "sem_init for " << index << " in producer has failed.";
+    cout << "sem_init error code: " << result << endl;
+    pthread_exit(0);
+    exit(FAILED_SEMAPHORE_INIT);
+  }
+}
+
+void setup_producers (Data *data)
+{
+  int num_of_producers = data -> num_of_producers;
 
   for (int index = 0; index < num_of_producers; index++) {
 
     pthread_t producerid;
-    pthread_create (&producerid, NULL, producer, (void *) &index);
+    pthread_create (&producerid, NULL, producer, (void *) data);
 
     pthread_join (producerid, NULL);
 
@@ -94,13 +133,15 @@ void setup_producers (int num_of_producers)
   }
 }
 
-void setup_consumers (int num_of_consumers)
+void setup_consumers (Data *data)
 {
+
+  int num_of_consumers = data -> num_of_consumers;
 
   for (int index = 0; index < num_of_consumers; index++) {
 
     pthread_t consumerid;
-    pthread_create (&consumerid, NULL, consumer, (void *) &index);
+    pthread_create (&consumerid, NULL, consumer, (void *) data);
 
     pthread_join (consumerid, NULL);
 
@@ -108,42 +149,35 @@ void setup_consumers (int num_of_consumers)
   }
 }
 
-void setup_jobs()
+void *producer (void *params)
 {
 
-}
+  Data *data = (Data *) params;
+  int job_counter = data -> job_counter;
+  int queue_size = data -> queue_size;
+  const int SEM_ID = data -> semaphore_id;
 
-void *producer (void *id)
-{
 
-  // TODO
-  int *index = (int *) id;
-  int result = sem_init (SEM_ID, *index, PRODUCER_WAIT);
-  if (result != 0) {
-    cout << "sem_init for " << *index << " in producer has failed.";
-    cout << "sem_init error code: " << result << endl;
+  while (1) {
+    int add_time = rand() % 5 + 1;
+    sleep (add_time);
+
+    cout << "\nThat was a good sleep - thank you \n" << endl;
+
+    int job = rand() % 10 + 1;
+    sem_wait(SEM_ID, data -> space, (int) data -> PRODUCER_WAIT);
+    
+    data -> job_durations[job_counter] = ;
+    
+    sem_wait(SEM_ID, data -> space, (int) data -> PRODUCER_WAIT);
     pthread_exit(0);
-    exit(FAILED_SEMAPHORE_INIT);
   }
-
-  sleep (5);
-
-  cout << "\nThat was a good sleep - thank you \n" << endl;
-
-  pthread_exit(0);
 }
 
-void *consumer (void *id)
+void *consumer (void *params)
 {
     // TODO
-  int *index = (int *) id;
-  int result = sem_init (SEM_ID, *index, CONSUMER_WAIT);
-  if (result != 0) {
-    cout << "sem_init for " << *index << " in consumer has failed.";
-    cout << " sem_init error code: " << result << endl;
-    pthread_exit(0);
-    exit(FAILED_SEMAPHORE_INIT);
-  }
+  Data * data = (Data *) params;
 
   sleep (5);
 
