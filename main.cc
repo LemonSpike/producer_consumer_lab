@@ -23,7 +23,7 @@ struct Data {
           item(1), mutex(2), job_counter(0) { };
 };
 
-void print_sem_error_if_needed(int result);
+void print_sem_error_if_needed(int result, int index);
 void setup_producers (Data *data);
 void setup_consumers (Data *data);
 void setup_semaphores (Data *data);
@@ -154,7 +154,6 @@ void *producer (void *params)
 
   Data *data = (Data *) params;
   int job_counter = data -> job_counter;
-  int queue_size = data -> queue_size;
   const int SEM_ID = data -> semaphore_id;
 
 
@@ -167,7 +166,7 @@ void *producer (void *params)
     int job = rand() % 10 + 1;
     sem_wait(SEM_ID, data -> space, (int) data -> PRODUCER_WAIT);
     
-    data -> job_durations[job_counter] = ;
+    data -> job_durations[job_counter] = job;
     
     sem_wait(SEM_ID, data -> space, (int) data -> PRODUCER_WAIT);
     pthread_exit(0);
