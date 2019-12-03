@@ -42,23 +42,27 @@ int sem_init (int id, int num, int value)
   return 0;
 }
 
-void sem_wait (int id, short unsigned int num, int timeout)
+int sem_wait (int id, short unsigned int num, int timeout)
 {
   struct sembuf op[] = {
     {num, -1, SEM_UNDO}
   };
-  const struct timespec spec[] = {
+
+  if (timeout == 0)
+    return (semop (id, op, 1) < 0) ? GENERIC_ERROR_CODE : 0;
+
+  struct timespec spec[] = {
     {timeout, 0}
   };
-  semtimedop (id, op, 1, spec);
+  return (semtimedop (id, op, 1, spec) < 0) ? GENERIC_ERROR_CODE : 0;
 }
 
-void sem_signal (int id, short unsigned int num)
+int sem_signal (int id, short unsigned int num)
 {
   struct sembuf op[] = {
     {num, 1, SEM_UNDO}
   };
-  semop (id, op, 1);
+  return (semop (id, op, 1) < 0) ? GENERIC_ERROR_CODE : 0;
 }
 
 int sem_close (int id)

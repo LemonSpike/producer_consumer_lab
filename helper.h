@@ -19,6 +19,7 @@
 # include <math.h>
 # include <errno.h>
 # include <string.h>
+# include <vector>
 # include <pthread.h>
 # include <ctype.h>
 # include <iostream>
@@ -42,8 +43,8 @@ union semun {
 int check_arg (char *);
 int sem_create (key_t, int);
 int sem_init (int, int, int);
-void sem_wait (int, short unsigned int, int);
-void sem_signal (int, short unsigned int);
+int sem_wait (int, short unsigned int, int);
+int sem_signal (int, short unsigned int);
 int sem_close (int);
 
 #endif
