@@ -21,23 +21,27 @@ struct SharedData {
 };
 
 struct ConsumerThreadData {
-  SharedData *shared = nullptr;
+  SharedData *shared;
   int cons_id = GENERIC_ERROR_CODE;
   const int CONSUMER_WAIT = 20;
 
-  ConsumerThreadData() { };
+  ConsumerThreadData() {
+    shared = nullptr;
+  };
 
   ConsumerThreadData(SharedData *shared, int cons_id): shared(shared),
                                                        cons_id(cons_id) { };
 };
 
 struct ProducerThreadData {
-  SharedData *shared = nullptr;
+  SharedData *shared;
   int prod_id = GENERIC_ERROR_CODE;
   int num_producer_jobs = 0;
   const int PRODUCER_WAIT = 20;
 
-  ProducerThreadData() { };
+  ProducerThreadData() {
+    shared = nullptr;
+  };
 
   ProducerThreadData(SharedData *shared, int prod_id, int num_p_jobs):
     shared(shared), prod_id(prod_id), num_producer_jobs(num_p_jobs) { };
@@ -173,15 +177,15 @@ void print_sem_error_if_needed(int result, int index, const int semaphore_id)
 void setup_producers (SharedData *data, int num_producer_jobs)
 {
   int num_of_producers = data -> num_of_producers;
-  vector<ProducerThreadData> prod_data;
+  vector<ProducerThreadData *> prod_data;
 
   for (int index = 0; index < num_of_producers; index++) {
 
-    prod_data.push_back(ProducerThreadData(data, index + 1, num_producer_jobs));
+    prod_data.push_back(new ProducerThreadData(data, index + 1, num_producer_jobs));
 
     pthread_t producerid;
     int result = pthread_create (&producerid, NULL, producer,
-                                 (void *) &(prod_data.back()));
+                                 (void *) prod_data.back());
     if (result < 0) {
       cerr << "Producer(" << index + 1 << "): Thread creation failed" << endl;
       return;
@@ -193,15 +197,15 @@ void setup_producers (SharedData *data, int num_producer_jobs)
 void setup_consumers (SharedData *data)
 {
   int num_of_consumers = data -> num_of_consumers;
-  vector<ConsumerThreadData> cons_data;
+  vector<ConsumerThreadData *> cons_data;
 
   for (int index = 0; index < num_of_consumers; index++) {
 
-    cons_data.push_back(ConsumerThreadData(data, index + 1));
+    cons_data.push_back(new ConsumerThreadData(data, index + 1));
 
     pthread_t consumerid;
     int result = pthread_create (&consumerid, NULL, consumer,
-                                 (void *) &(cons_data.back()));
+                                 (void *) cons_data.back());
     if (result < 0) {
       cerr << "Consumer(" << index + 1 << "): Thread creation failed" << endl;
       return;
