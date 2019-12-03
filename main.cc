@@ -14,8 +14,7 @@ struct SharedData {
   int current_job_id;
   vector<pthread_t> threads;
 
-  SharedData(int q_size, int num_consumers, int num_producers,
-             vector<int> job_durations):
+  SharedData(int q_size, int num_consumers, int num_producers):
     semaphore_id(GENERIC_ERROR_CODE), queue_size(q_size),
     num_of_consumers(num_consumers), num_of_producers(num_producers),
     current_job_id(1) { };
