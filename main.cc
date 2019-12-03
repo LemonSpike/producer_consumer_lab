@@ -286,6 +286,8 @@ void *producer (void *params)
   }
 
   cerr << "Producer(" << prod_id << "): No more jobs to generate." << endl;
+
+  delete data;
   pthread_exit(0);
 }
 
@@ -306,9 +308,11 @@ void *consumer (void *params)
     int result = sem_wait(SEM_ID, item, wait);
     if (errno == EAGAIN) {
       cerr << "Consumer(" << cons_id << "): No more jobs left." << endl;
+      delete data;
       pthread_exit (0);
       break;
     } else if (result == GENERIC_ERROR_CODE) {
+      delete data;
       cerr << "Consumer(" << cons_id << "): Error occurred in waiting for ";
       cerr << "item semaphore. Error code: " << errno << endl;
       pthread_exit (0);
@@ -317,6 +321,7 @@ void *consumer (void *params)
 
     result = sem_wait(SEM_ID, mutex, 0);
     if (result == GENERIC_ERROR_CODE) {
+      delete data;
       cerr << "Consumer(" << cons_id << "): Error occurred in waiting for ";
       cerr << "mutex semaphore. Error code: " << errno << endl;
       pthread_exit (0);
