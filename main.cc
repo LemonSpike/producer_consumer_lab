@@ -18,7 +18,7 @@ struct SharedData {
              vector<int> job_durations):
     semaphore_id(GENERIC_ERROR_CODE), queue_size(q_size),
     num_of_consumers(num_consumers), num_of_producers(num_producers),
-    job_durations(job_durations), current_job_id(1) { };
+    current_job_id(1) { };
 };
 
 struct ConsumerThreadData {
@@ -104,7 +104,7 @@ int main (int argc, char **argv)
 
   // Setup and initialise data structure.
   SharedData *data = new SharedData(queue_size, num_of_producers,
-                                    num_of_consumers, new int[queue_size]);
+                                    num_of_consumers);
 
   // Setup semaphores.
   setup_semaphores(data);
@@ -115,6 +115,7 @@ int main (int argc, char **argv)
   // Setup and initialise producer threads.
   setup_producers(data, num_producer_jobs);
 
+  // Wait for threads to complete.
   for (unsigned int i = 0; i < (data -> threads).size(); i++) {
     int result = pthread_join ((data -> threads)[i], NULL);
     if (result < 0) {
@@ -124,12 +125,14 @@ int main (int argc, char **argv)
     }
   }
 
+  // Tidy up semaphors and allocated memory.
   int result = sem_close(data -> semaphore_id);
   if (result < 0) {
     cerr << "sem_close failed for sem_id: " << (data -> semaphore_id) << endl;
     return GENERIC_ERROR_CODE;
   }
 
+  delete data;
   return 0;
 }
 
@@ -303,7 +306,6 @@ void *consumer (void *params)
   const int SEM_ID = (data -> shared) -> semaphore_id;
   int cons_id = data -> cons_id;
   int wait = (int) data -> CONSUMER_WAIT;
-  int queue_size = data -> shared -> queue_size;
   int space = 0;
   int item = 1;
   int mutex = 2;
