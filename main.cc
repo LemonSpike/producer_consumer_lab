@@ -10,19 +10,19 @@ struct SharedData {
   const int queue_size;
   const int num_of_consumers;
   const int num_of_producers;
-  int * const job_durations = nullptr;
-  int current_job_id = 1;
+  vector<int> job_durations;
+  int current_job_id;
   vector<pthread_t> threads;
 
   SharedData(int q_size, int num_consumers, int num_producers,
-             int * const job_durations):
+             vector<int> job_durations):
     semaphore_id(GENERIC_ERROR_CODE), queue_size(q_size),
     num_of_consumers(num_consumers), num_of_producers(num_producers),
-    job_durations(job_durations) { };
+    job_durations(job_durations), current_job_id(1) { };
 };
 
 struct ConsumerThreadData {
-  SharedData *shared;
+  SharedData *shared = nullptr;
   int cons_id = GENERIC_ERROR_CODE;
   const int CONSUMER_WAIT = 20;
 
@@ -32,16 +32,14 @@ struct ConsumerThreadData {
     return *this;
   }
 
-  ConsumerThreadData() {
-    shared = nullptr;
-  };
+  ConsumerThreadData() { };
 
   ConsumerThreadData(SharedData *shared, int cons_id): shared(shared),
                                                        cons_id(cons_id) { };
 };
 
 struct ProducerThreadData {
-  SharedData *shared;
+  SharedData *shared = nullptr;
   int prod_id = GENERIC_ERROR_CODE;
   int num_producer_jobs = 0;
   const int PRODUCER_WAIT = 20;
@@ -53,9 +51,7 @@ struct ProducerThreadData {
     return *this;
   }
 
-  ProducerThreadData() {
-    shared = nullptr;
-  };
+  ProducerThreadData() { };
 
   ProducerThreadData(SharedData *shared, int prod_id, int num_p_jobs):
     shared(shared), prod_id(prod_id), num_producer_jobs(num_p_jobs) { };
@@ -123,7 +119,8 @@ int main (int argc, char **argv)
     int result = pthread_join ((data -> threads)[i], NULL);
     if (result < 0) {
       cerr << "Thread join failed." << endl;
-      return GENERIC_ERROR_CODE;
+      pthread_exit (0);
+      return FAILED_THREAD_JOIN;
     }
   }
 
@@ -141,6 +138,12 @@ void setup_semaphores (SharedData *data)
   const int NUM_SEMAPHORES = 3;
   const int SEM_ID = sem_create(SEM_KEY,
                                 NUM_SEMAPHORES);
+  if (SEM_ID < 0) {
+    cerr << "sem_create failed with error code: " << errno << endl;
+    pthread_exit (0);
+    exit(FAILED_SEM_CREATE);
+  }
+
   int space = 0;
   int item = 1;
   int mutex = 2;
@@ -182,17 +185,17 @@ void print_sem_error_if_needed(int result, int index, const int semaphore_id)
 void setup_producers (SharedData *data, int num_producer_jobs)
 {
   int num_of_producers = data -> num_of_producers;
-  ProducerThreadData *prod_data = new ProducerThreadData[num_of_producers];
+  vector<ProducerThreadData> prod_data;
 
-  for (int index = 1; index <= num_of_producers; index++) {
+  for (int index = 0; index < num_of_producers; index++) {
 
-    prod_data[index - 1] = ProducerThreadData(data, index, num_producer_jobs);
+    prod_data.push_back(ProducerThreadData(data, index + 1, num_producer_jobs));
 
     pthread_t producerid;
     int result = pthread_create (&producerid, NULL, producer,
-                                 (void *) &prod_data[index - 1]);
+                                 (void *) &prod_data[index]);
     if (result < 0) {
-      cerr << "Producer(" << index << "): Thread creation failed" << endl;
+      cerr << "Producer(" << index + 1 << "): Thread creation failed" << endl;
       return;
     }
     (data -> threads).push_back(producerid);
@@ -202,17 +205,17 @@ void setup_producers (SharedData *data, int num_producer_jobs)
 void setup_consumers (SharedData *data)
 {
   int num_of_consumers = data -> num_of_consumers;
-  ConsumerThreadData *cons_data = new ConsumerThreadData[num_of_consumers];
+  vector<ConsumerThreadData> cons_data;
 
-  for (int index = 1; index <= num_of_consumers; index++) {
+  for (int index = 0; index < num_of_consumers; index++) {
 
-    cons_data[index - 1] = ConsumerThreadData(data, index);
+    cons_data.push_back(ConsumerThreadData(data, index + 1));
 
     pthread_t consumerid;
     int result = pthread_create (&consumerid, NULL, consumer,
-                                 (void *) &cons_data[index - 1]);
+                                 (void *) &cons_data[index]);
     if (result < 0) {
-      cerr << "Consumer(" << index << "): Thread creation failed" << endl;
+      cerr << "Consumer(" << index + 1 << "): Thread creation failed" << endl;
       return;
     }
     (data -> threads).push_back(consumerid);
@@ -228,22 +231,18 @@ void *producer (void *params)
   int prod_id = data -> prod_id;
   int wait = (int) data -> PRODUCER_WAIT;
   int space = 0;
-  int mutex = 2;
   int item = 1;
+  int mutex = 2;
   int queue_size = data -> shared -> queue_size;
 
   while (job_counter <= data -> num_producer_jobs) {
 
+    // Produce job.
     int add_time = rand() % 5 + 1;
     sleep (add_time);
     int job = rand() % 10 + 1;
-    int current_job_id = data -> shared -> current_job_id;
 
-    cerr << "Producer(" << prod_id << "): Job id ";
-    cerr << current_job_id << " duration " << job << endl;
-
-    data -> shared -> current_job_id = ((current_job_id + 1) % queue_size) + 1;
-
+    // Wait.
     int result = sem_wait(SEM_ID, space, wait);
     if (errno == EAGAIN) {
       cerr << "Producer(" << prod_id << "): Timed out" << endl;
@@ -263,11 +262,18 @@ void *producer (void *params)
       break;
     }
 
-    int index = 0;
-    while ((data -> shared -> job_durations)[index] != 0) {
-      index++;
-    }
-    (data -> shared -> job_durations)[index] = job;
+    int current_job_id = data -> shared -> current_job_id;
+    cerr << "Producer(" << prod_id << "): Job id ";
+    cerr << current_job_id << " duration " << job << endl;
+
+    // Deposit job.
+    (data -> shared -> job_durations).push_back(job);
+
+    // Increment Job ID.
+    if (current_job_id == queue_size)
+      data -> shared -> current_job_id = 1;
+    else 
+      (data -> shared -> current_job_id)++;
 
     result = sem_signal(SEM_ID, mutex);
     if (result == GENERIC_ERROR_CODE) {
@@ -298,11 +304,13 @@ void *consumer (void *params)
   int cons_id = data -> cons_id;
   int wait = (int) data -> CONSUMER_WAIT;
   int queue_size = data -> shared -> queue_size;
+  int space = 0;
   int item = 1;
   int mutex = 2;
-  int space = 0;
 
   while (1) {
+
+    // Wait for item and utex semaphores.
     int result = sem_wait(SEM_ID, item, wait);
     if (errno == EAGAIN) {
       cerr << "Consumer(" << cons_id << "): No more jobs left." << endl;
@@ -323,17 +331,18 @@ void *consumer (void *params)
       break;
     }
 
-    int job = (data -> shared -> job_durations)[0];
-
-    for (int i = 0; i < (data -> shared -> queue_size) - 1; i++)
-      (data -> shared -> job_durations)[i] =
-        (data -> shared -> job_durations)[i + 1];
+    vector<int> job_durations = data -> shared -> job_durations;
+    int job = job_durations[0];
+    job_durations.erase(job_durations.begin());
 
     int current_job_id = data -> shared -> current_job_id;
     cerr << "Consumer(" << cons_id << "): Job id " << current_job_id;
     cerr << " executing sleep duration " << job << endl;
-    data -> shared -> current_job_id = ((current_job_id - 1) % queue_size) + 1;
 
+    if (current_job_id != 1)
+      (data -> shared -> current_job_id)--;
+
+    // Signal mutex and space semaphores.
     result = sem_signal(SEM_ID, mutex);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Consumer(" << cons_id << "): Error occurred in signalling ";
@@ -350,6 +359,7 @@ void *consumer (void *params)
       break;
     }
 
+    // Consume job.
     sleep(job);
 
     cerr << "Consumer(" << cons_id << "): Job id " << current_job_id;

@@ -29,7 +29,9 @@ using namespace std;
 # define GENERIC_ERROR_CODE -1
 # define INSUFFICIENT_NUM_ARGS 1
 # define INVALID_ARGUMENT 2
-# define FAILED_SEMAPHORE_INIT 3
+# define FAILED_SEM_CREATE 3
+# define FAILED_SEMAPHORE_INIT 4
+# define FAILED_THREAD_JOIN 5
 
 // Semaphore set key
 # define SEM_KEY ftok("main.cc", 'B')
