@@ -11,18 +11,17 @@ struct SharedData {
   const int num_of_consumers;
   const int num_of_producers;
   vector<int> job_durations;
-  int current_job_id;
   vector<pthread_t> threads;
 
   SharedData(int q_size, int num_consumers, int num_producers):
     semaphore_id(GENERIC_ERROR_CODE), queue_size(q_size),
-    num_of_consumers(num_consumers), num_of_producers(num_producers),
-    current_job_id(1) { };
+    num_of_consumers(num_consumers), num_of_producers(num_producers) { };
 };
 
 struct ConsumerThreadData {
   SharedData *shared;
   int cons_id = GENERIC_ERROR_CODE;
+  int *cons_job_id = nullptr;
   const int CONSUMER_WAIT = 20;
 
   ConsumerThreadData() {
@@ -36,6 +35,7 @@ struct ConsumerThreadData {
 struct ProducerThreadData {
   SharedData *shared;
   int prod_id = GENERIC_ERROR_CODE;
+  int *prod_job_id = nullptr;
   int num_producer_jobs = 0;
   const int PRODUCER_WAIT = 20;
 
@@ -48,8 +48,9 @@ struct ProducerThreadData {
 };
 
 void print_sem_error_if_needed(int result, int index, const int semaphore_id);
-void setup_producers (SharedData *data, int num_producer_jobs);
-void setup_consumers (SharedData *data);
+void setup_producers (SharedData *data, int num_producer_jobs,
+                      int *prod_job_id);
+void setup_consumers (SharedData *data, int *cons_job_id);
 void setup_semaphores (SharedData *data);
 void *producer (void *params);
 void *consumer (void *params);
@@ -96,14 +97,17 @@ int main (int argc, char **argv)
   SharedData *data = new SharedData(queue_size, num_of_producers,
                                     num_of_consumers);
 
+  int prod_job_id = 0;
+  int cons_job_id = 0;
+
   // Setup semaphores.
   setup_semaphores(data);
 
   // Setup and initialise consumer threads.
-  setup_consumers(data);
+  setup_consumers(data, &cons_job_id);
 
   // Setup and initialise producer threads.
-  setup_producers(data, num_producer_jobs);
+  setup_producers(data, num_producer_jobs, &prod_job_id);
 
   // Wait for threads to complete.
   for (unsigned int i = 0; i < (data -> threads).size(); i++) {
@@ -174,14 +178,16 @@ void print_sem_error_if_needed(int result, int index, const int semaphore_id)
   return;
 }
 
-void setup_producers (SharedData *data, int num_producer_jobs)
+void setup_producers (SharedData *data, int num_producer_jobs, int *prod_job_id)
 {
   int num_of_producers = data -> num_of_producers;
   vector<ProducerThreadData *> prod_data;
 
   for (int index = 0; index < num_of_producers; index++) {
 
-    prod_data.push_back(new ProducerThreadData(data, index + 1, num_producer_jobs));
+    auto thread = new ProducerThreadData(data, index + 1, num_producer_jobs);
+    thread -> prod_job_id = prod_job_id;
+    prod_data.push_back(thread);
 
     pthread_t producerid;
     int result = pthread_create (&producerid, NULL, producer,
@@ -194,14 +200,16 @@ void setup_producers (SharedData *data, int num_producer_jobs)
   }
 }
 
-void setup_consumers (SharedData *data)
+void setup_consumers (SharedData *data, int *cons_job_id)
 {
   int num_of_consumers = data -> num_of_consumers;
   vector<ConsumerThreadData *> cons_data;
 
   for (int index = 0; index < num_of_consumers; index++) {
 
-    cons_data.push_back(new ConsumerThreadData(data, index + 1));
+    auto thread = new ConsumerThreadData(data, index + 1);
+    thread -> cons_job_id = cons_job_id;
+    cons_data.push_back(thread);
 
     pthread_t consumerid;
     int result = pthread_create (&consumerid, NULL, consumer,
@@ -218,7 +226,7 @@ void *producer (void *params)
 {
 
   ProducerThreadData *data = (ProducerThreadData *) params;
-  int job_counter = 1;
+  int job_counter = 0;
   const int SEM_ID = data -> shared -> semaphore_id;
   int prod_id = data -> prod_id;
   int wait = (int) data -> PRODUCER_WAIT;
@@ -226,8 +234,9 @@ void *producer (void *params)
   int item = 1;
   int mutex = 2;
   int queue_size = data -> shared -> queue_size;
+  int *prod_job_id = data -> prod_job_id;
 
-  while (job_counter <= data -> num_producer_jobs) {
+  while (job_counter < data -> num_producer_jobs) {
 
     // Produce job.
     int add_time = rand() % 5 + 1;
@@ -254,18 +263,16 @@ void *producer (void *params)
       break;
     }
 
-    int current_job_id = data -> shared -> current_job_id;
     cerr << "Producer(" << prod_id << "): Job id ";
-    cerr << current_job_id << " duration " << job << endl;
+    cerr << (*prod_job_id) + 1 << " duration " << job << endl;
 
     // Deposit job.
     (data -> shared -> job_durations).push_back(job);
 
-    // Increment Job ID.
-    if (current_job_id == queue_size)
-      data -> shared -> current_job_id = 1;
-    else
-      (data -> shared -> current_job_id)++;
+    (*prod_job_id)++;
+
+    if (*prod_job_id == queue_size)
+      *prod_job_id = 0;
 
     // Signal other producers or consumers.
     result = sem_signal(SEM_ID, mutex);
@@ -297,10 +304,12 @@ void *consumer (void *params)
   ConsumerThreadData * data = (ConsumerThreadData *) params;
   const int SEM_ID = (data -> shared) -> semaphore_id;
   int cons_id = data -> cons_id;
+  int *cons_job_id = data -> cons_job_id;
   int wait = (int) data -> CONSUMER_WAIT;
   int space = 0;
   int item = 1;
   int mutex = 2;
+  int queue_size = data -> shared -> queue_size;
 
   while (1) {
 
@@ -328,17 +337,25 @@ void *consumer (void *params)
       break;
     }
 
-    vector<int> job_durations((data -> shared -> job_durations).begin(),
-                              (data -> shared -> job_durations).end());
-    int job = job_durations[0];
-    job_durations.erase(job_durations.begin());
+    vector<int> job_durations = data -> shared -> job_durations;
+    int job = job_durations[*cons_job_id];
 
-    int current_job_id = data -> shared -> current_job_id;
-    cerr << "Consumer(" << cons_id << "): Job id " << current_job_id;
+    while (job == 0) {
+      (*cons_job_id)++;
+      job = job_durations[*cons_job_id];
+    }
+
+    job_durations.erase(job_durations.begin() + *cons_job_id);
+
+    cerr << "Consumer(" << cons_id << "): Job id " << (*cons_job_id) + 1;
     cerr << " executing sleep duration " << job << endl;
 
-    if (current_job_id != 1)
-      (data -> shared -> current_job_id)--;
+    int id_finished =  *cons_job_id;
+
+    (*cons_job_id)++;
+
+    if (*cons_job_id == queue_size)
+      *cons_job_id = 0;
 
     // Signal mutex and space semaphores.
     result = sem_signal(SEM_ID, mutex);
@@ -360,7 +377,9 @@ void *consumer (void *params)
     // Consume job.
     sleep(job);
 
-    cerr << "Consumer(" << cons_id << "): Job id " << current_job_id;
+    cerr << "Consumer(" << cons_id << "): Job id " << id_finished + 1;
     cerr << " completed" << endl;
   }
+
+  pthread_exit (0);
 }

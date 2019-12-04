@@ -34,7 +34,7 @@ using namespace std;
 # define FAILED_THREAD_JOIN 5
 
 // Semaphore set key
-# define SEM_KEY ftok("main.cc", 'B')
+const int SEM_KEY = ftok("main.cc", 'B');
 
 union semun {
     int val;               /* used for SETVAL only */
