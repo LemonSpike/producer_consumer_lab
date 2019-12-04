@@ -95,8 +95,8 @@ int main (int argc, char **argv)
   }
 
   // Setup and initialise data structure.
-  SharedData *data = new SharedData(queue_size, num_of_producers,
-                                    num_of_consumers);
+  SharedData *data = new SharedData(queue_size, num_of_consumers,
+                                    num_of_producers);
 
   int prod_job_id = 0;
   int cons_job_id = 0;
