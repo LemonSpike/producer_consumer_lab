@@ -32,6 +32,7 @@ using namespace std;
 # define FAILED_SEM_CREATE 3
 # define FAILED_SEMAPHORE_INIT 4
 # define FAILED_THREAD_JOIN 5
+# define FAILED_THREAD_CREATION 6
 
 // Semaphore set key
 const int SEM_KEY = ftok("main.cc", 'B');

@@ -196,7 +196,8 @@ void setup_producers (SharedData *data, int num_producer_jobs, int *prod_job_id)
                                  (void *) prod_data.back());
     if (result < 0) {
       cerr << "Producer(" << index + 1 << "): Thread creation failed" << endl;
-      return;
+      sem_close(data -> semaphore_id);
+      exit(FAILED_THREAD_CREATION);
     }
     (data -> threads).push_back(producerid);
   }
@@ -218,7 +219,8 @@ void setup_consumers (SharedData *data, int *cons_job_id)
                                  (void *) cons_data.back());
     if (result < 0) {
       cerr << "Consumer(" << index + 1 << "): Thread creation failed" << endl;
-      return;
+      sem_close(data -> semaphore_id);
+      exit(FAILED_THREAD_CREATION);
     }
     (data -> threads).push_back(consumerid);
   }
@@ -249,20 +251,20 @@ void *producer (void *params)
     int result = sem_wait(SEM_ID, space, wait);
     if (errno == EAGAIN) {
       cerr << "Producer(" << prod_id << "): Timed out" << endl;
+      delete data;
       pthread_exit(0);
-      break;
     } else if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in waiting for ";
       cerr << "space semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
     result = sem_wait(SEM_ID, mutex, 0);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in waiting for ";
       cerr << "mutex semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
 
     cerr << "Producer(" << prod_id << "): Job id ";
@@ -281,15 +283,15 @@ void *producer (void *params)
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in signalling ";
       cerr << "mutex semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
     result = sem_signal(SEM_ID, item);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in signalling ";
       cerr << "item semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
     job_counter++;
   }
@@ -321,13 +323,11 @@ void *consumer (void *params)
       cerr << "Consumer(" << cons_id << "): No more jobs left." << endl;
       delete data;
       pthread_exit (0);
-      break;
     } else if (result == GENERIC_ERROR_CODE) {
-      delete data;
       cerr << "Consumer(" << cons_id << "): Error occurred in waiting for ";
       cerr << "item semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
 
     result = sem_wait(SEM_ID, mutex, 0);
@@ -335,8 +335,8 @@ void *consumer (void *params)
       delete data;
       cerr << "Consumer(" << cons_id << "): Error occurred in waiting for ";
       cerr << "mutex semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
 
     int *job_durations = data -> shared -> job_durations;
@@ -364,16 +364,16 @@ void *consumer (void *params)
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Consumer(" << cons_id << "): Error occurred in signalling ";
       cerr << "mutex semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
 
     result = sem_signal(SEM_ID, space);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Consumer(" << cons_id << "): Error occurred in signalling ";
       cerr << "space semaphore. Error code: " << errno << endl;
+      delete data;
       pthread_exit (0);
-      break;
     }
 
     // Consume job.
@@ -382,6 +382,4 @@ void *consumer (void *params)
     cerr << "Consumer(" << cons_id << "): Job id " << id_finished + 1;
     cerr << " completed" << endl;
   }
-
-  pthread_exit (0);
 }
