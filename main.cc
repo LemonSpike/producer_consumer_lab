@@ -10,12 +10,13 @@ struct SharedData {
   const int queue_size;
   const int num_of_consumers;
   const int num_of_producers;
-  vector<int> job_durations;
+  int * const job_durations;
   vector<pthread_t> threads;
 
   SharedData(int q_size, int num_consumers, int num_producers):
     semaphore_id(GENERIC_ERROR_CODE), queue_size(q_size),
-    num_of_consumers(num_consumers), num_of_producers(num_producers) { };
+    num_of_consumers(num_consumers), num_of_producers(num_producers),
+    job_durations(new int[queue_size]()) { };
 };
 
 struct ConsumerThreadData {
@@ -126,6 +127,7 @@ int main (int argc, char **argv)
     return GENERIC_ERROR_CODE;
   }
 
+  delete [] (data -> job_durations);
   delete data;
   return 0;
 }
@@ -267,7 +269,7 @@ void *producer (void *params)
     cerr << (*prod_job_id) + 1 << " duration " << job << endl;
 
     // Deposit job.
-    (data -> shared -> job_durations).push_back(job);
+    (data -> shared -> job_durations)[*prod_job_id] = job;
 
     (*prod_job_id)++;
 
@@ -337,7 +339,7 @@ void *consumer (void *params)
       break;
     }
 
-    vector<int> job_durations = data -> shared -> job_durations;
+    int *job_durations = data -> shared -> job_durations;
     int job = job_durations[*cons_job_id];
 
     while (job == 0) {
@@ -345,7 +347,7 @@ void *consumer (void *params)
       job = job_durations[*cons_job_id];
     }
 
-    job_durations.erase(job_durations.begin() + *cons_job_id);
+    job_durations[*cons_job_id] = 0;
 
     cerr << "Consumer(" << cons_id << "): Job id " << (*cons_job_id) + 1;
     cerr << " executing sleep duration " << job << endl;
