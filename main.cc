@@ -5,6 +5,7 @@
 
 #include "helper.h"
 
+// Producers and consumers need this data.
 struct SharedData {
   int semaphore_id;
   const int queue_size;
@@ -19,6 +20,7 @@ struct SharedData {
     job_durations(new int[queue_size]()) { };
 };
 
+// Consumers need this data.
 struct ConsumerThreadData {
   SharedData *shared;
   int cons_id = GENERIC_ERROR_CODE;
@@ -33,6 +35,7 @@ struct ConsumerThreadData {
                                                        cons_id(cons_id) { };
 };
 
+// Producers need this data.
 struct ProducerThreadData {
   SharedData *shared;
   int prod_id = GENERIC_ERROR_CODE;
@@ -48,12 +51,26 @@ struct ProducerThreadData {
     shared(shared), prod_id(prod_id), num_producer_jobs(num_p_jobs) { };
 };
 
+// This function creates 3 semaphores, and updates the shared data with
+// the Semaphore ID.
+void setup_semaphores (SharedData *data);
+
+// This function prints an error if there was an error creating semaphors.
 void print_sem_error_if_needed(int result, int index, const int semaphore_id);
+
+// This function creates producer threads passing in the data needed.
 void setup_producers (SharedData *data, int num_producer_jobs,
                       int *prod_job_id);
+
+// This function creates consumer threads passing in the data needed.
 void setup_consumers (SharedData *data, int *cons_job_id);
-void setup_semaphores (SharedData *data);
+
+// This function is called when a producer thread is created,
+// producing and depositing the required number of jobs.
 void *producer (void *params);
+
+// This function is called when a consumer thread is created,
+// fetching and consuming jobs until there are no more jobs available.
 void *consumer (void *params);
 
 int main (int argc, char **argv)
@@ -143,6 +160,7 @@ void setup_semaphores (SharedData *data)
     exit(FAILED_SEM_CREATE);
   }
 
+  // These initialise the semaphore indices.
   int space = 0;
   int item = 1;
   int mutex = 2;
@@ -229,6 +247,7 @@ void setup_consumers (SharedData *data, int *cons_job_id)
 void *producer (void *params)
 {
 
+  // Setup variables for easy access.
   ProducerThreadData *data = (ProducerThreadData *) params;
   int job_counter = 0;
   const int SEM_ID = data -> shared -> semaphore_id;
@@ -247,7 +266,7 @@ void *producer (void *params)
     sleep (add_time);
     int job = rand() % 10 + 1;
 
-    // Wait.
+    // Wait for a space to become available.
     int result = sem_wait(SEM_ID, space, wait);
     if (errno == EAGAIN) {
       cerr << "Producer(" << prod_id << "): Timed out" << endl;
@@ -259,6 +278,8 @@ void *producer (void *params)
       delete data;
       pthread_exit (0);
     }
+
+    // Ensure mutual exclusion is ensure before depositing job.
     result = sem_wait(SEM_ID, mutex, 0);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in waiting for ";
@@ -267,18 +288,20 @@ void *producer (void *params)
       pthread_exit (0);
     }
 
+    // Print out status.
     cerr << "Producer(" << prod_id << "): Job id ";
     cerr << (*prod_job_id) + 1 << " duration " << job << endl;
 
     // Deposit job.
     (data -> shared -> job_durations)[*prod_job_id] = job;
 
+    // Increment producer job ID.
     (*prod_job_id)++;
 
     if (*prod_job_id == queue_size)
       *prod_job_id = 0;
 
-    // Signal other producers or consumers.
+    // Signal to other waiting threads.
     result = sem_signal(SEM_ID, mutex);
     if (result == GENERIC_ERROR_CODE) {
       cerr << "Producer(" << prod_id << "): Error occurred in signalling ";
@@ -305,6 +328,7 @@ void *producer (void *params)
 void *consumer (void *params)
 {
 
+  // Setup variables for easy access.
   ConsumerThreadData * data = (ConsumerThreadData *) params;
   const int SEM_ID = (data -> shared) -> semaphore_id;
   int cons_id = data -> cons_id;
@@ -339,6 +363,7 @@ void *consumer (void *params)
       pthread_exit (0);
     }
 
+    // Fetch and remove item.
     int *job_durations = data -> shared -> job_durations;
     int job = job_durations[*cons_job_id];
 
@@ -349,11 +374,13 @@ void *consumer (void *params)
 
     job_durations[*cons_job_id] = 0;
 
+    // Print status.
     cerr << "Consumer(" << cons_id << "): Job id " << (*cons_job_id) + 1;
     cerr << " executing sleep duration " << job << endl;
 
     int id_finished =  *cons_job_id;
 
+    // Increment consumer job ID.
     (*cons_job_id)++;
 
     if (*cons_job_id == queue_size)
@@ -379,6 +406,7 @@ void *consumer (void *params)
     // Consume job.
     sleep(job);
 
+    // Print completed job status.
     cerr << "Consumer(" << cons_id << "): Job id " << id_finished + 1;
     cerr << " completed" << endl;
   }

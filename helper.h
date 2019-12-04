@@ -26,28 +26,44 @@
 using namespace std;
 
 // Errors
-# define GENERIC_ERROR_CODE -1
-# define INSUFFICIENT_NUM_ARGS 1
-# define INVALID_ARGUMENT 2
-# define FAILED_SEM_CREATE 3
-# define FAILED_SEMAPHORE_INIT 4
-# define FAILED_THREAD_JOIN 5
-# define FAILED_THREAD_CREATION 6
+const int GENERIC_ERROR_CODE = -1;
+const int INSUFFICIENT_NUM_ARGS = 1;
+const int INVALID_ARGUMENT = 2;
+const int FAILED_SEM_CREATE = 3;
+const int FAILED_SEMAPHORE_INIT = 4;
+const int FAILED_THREAD_JOIN = 5;
+const int FAILED_THREAD_CREATION = 6;
 
 // Semaphore set key
 const int SEM_KEY = ftok("main.cc", 'B');
 
+// Internal data structure used for initialising a
+// semaphore with id, semaphore number and value.
 union semun {
     int val;               /* used for SETVAL only */
     struct semid_ds *buf;  /* used for IPC_STAT and IPC_SET */
     ushort *array;         /* used for GETALL and SETALL */
 };
 
+// Check if input argument to program was positive, and if number
+// of program arguments are 4.
 int check_arg (char *);
+
+// Create a semaphore set.
 int sem_create (key_t, int);
+
+// Initialise a semaphore in the set with a value and index.
 int sem_init (int, int, int);
+
+// Wait for semaphore to be unlocked. Equivalent to down().
+// Last argument specifies an optional timeout in seconds.
+// If last argument is 0, no timeout will be used.
 int sem_wait (int, short unsigned int, int);
+
+// Unlock semaphore. Equivalent to up().
 int sem_signal (int, short unsigned int);
+
+// Close semaphore set.
 int sem_close (int);
 
 #endif
